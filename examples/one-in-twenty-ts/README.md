@@ -14,7 +14,7 @@ Each hunt run:
 
 1. Opens the checkout fixture.
 2. Changes shipping to Express.
-3. Waits **780ms** of user think-time. It does **not** click Pay immediately.
+3. Waits configurable user think-time. It does **not** click Pay immediately.
 4. Clicks Pay.
 5. Classifies the final `data-state`.
 
@@ -48,24 +48,33 @@ npm start
 
 ## Run Pass 2 baseline
 
+Recommended calibrated think-time is **720ms**:
+
 ```
 npm run hunt
+npm run hunt -- --think-ms 720
 ```
 
-Runtime files land in `artifacts/` (gitignored): `baseline.json` plus screenshots.
+Override if needed:
 
-## Verified baseline (real Solari run)
+```
+npm run hunt -- --think-ms 750
+```
 
-Think-time after shipping change: **780ms**.
+Default think-time is 720ms. Runtime files land in `artifacts/` (gitignored): `baseline.json` plus screenshots.
 
-| Batch | Runs | PASS | APP_FAIL | INFRA_FAIL |
-|---|---|---|---|---|
-| Baseline | 20 | 20 | 0 | 0 |
-| Diagnostic (same timing) | 20 | 20 | 0 | 0 |
-| Combined | 40 | 40 | 0 | 0 |
+## Verified results (real Solari runs)
 
-**BASELINE NOT CALIBRATED.** 40 recorded sessions, 40 unique Solari Browser IDs, one Sandbox, zero application failures.
+The fixture waits ~80ms after Pay before checking pending shipping. Failure is expected when shipping delay stays above think-time + 80ms. The planted delay range was not changed.
 
-Replay for the representative PASS session became available after the batch. One PASS screenshot was captured. No APP_FAIL screenshots exist because no APP_FAIL occurred.
+| Think-time | Runs | PASS | APP_FAIL | INFRA_FAIL | Result |
+|---|---|---|---|---|---|
+| 780ms | 40 | 40 | 0 | 0 | BASELINE NOT CALIBRATED |
+| 750ms | 20 | 20 | 0 | 0 | still too cold |
+| **720ms** | **20** | **16** | **4** | **0** | **BASELINE CALIBRATED** |
 
-Next timing to try in a later calibration pass, not this one: about **500–600ms** think-time. Do not click Pay immediately (that makes the race almost certain). Do not change the fixture delay range just to pretty up the score.
+720ms APP_FAIL runs: **#8, #15, #17, #19**. All ended `data-state="paying"` / `Processing payment…`.
+
+20 unique Solari Browser session IDs at 720ms. Fail screenshots: `run-08-fail.png`, `run-15-fail.png`, `run-17-fail.png`, `run-19-fail.png`. One PASS screenshot. Replay for run #19 became available after the batch; earlier fail replays were still 404 after polling.
+
+Do not click Pay immediately. That makes the race almost certain. Do not drop below 720ms in this pass.

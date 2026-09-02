@@ -2,8 +2,9 @@
  * Pass 2 — 20 fresh recorded Solari Browser sessions against one Sandbox fixture.
  *
  * Does not wait for shipping to settle. After switching to Express it waits
- * ~780ms of user think-time, then clicks Pay. The fixture's random 250–899ms
- * shipping delay is left alone.
+ * configurable user think-time, then clicks Pay. Default 780ms. Override with
+ * `--think-ms <number>`. The fixture's random 250–899ms shipping delay is left
+ * alone.
  */
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
@@ -14,7 +15,7 @@ import { FIXTURE_HTML } from "./fixture.ts"
 
 const RUNS = 20
 const PORT = 3000
-const THINK_MS = 780
+const DEFAULT_THINK_MS = 720
 const PAY_OBSERVE_MS = 3000
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ARTIFACTS = join(HERE, "..", "artifacts")
@@ -34,6 +35,26 @@ type RunResult = {
   replay: string | null
   screenshot: string | null
   error: string | null
+}
+
+function parseThinkMs(argv: string[], fallback: number): number {
+  const flag = argv.indexOf("--think-ms")
+  if (flag === -1) return fallback
+  const raw = argv[flag + 1]
+  if (raw === undefined || raw.startsWith("-")) {
+    console.error("Missing value for --think-ms")
+    process.exit(1)
+  }
+  if (!/^\d+$/.test(raw)) {
+    console.error(`Invalid --think-ms: ${raw}`)
+    process.exit(1)
+  }
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 0 || n > 60_000) {
+    console.error(`Invalid --think-ms: ${raw}`)
+    process.exit(1)
+  }
+  return n
 }
 
 function requireApiKey(): string {
@@ -132,6 +153,7 @@ async function huntBatch(opts: {
   solari: Solari
   startRun: number
   count: number
+  thinkMs: number
   capturedPassShot: { value: boolean }
 }): Promise<RunResult[]> {
   const results: RunResult[] = []
@@ -146,7 +168,7 @@ async function huntBatch(opts: {
       recording: true,
       startedAt: new Date(started).toISOString(),
       elapsedMs: 0,
-      thinkMs: THINK_MS,
+      thinkMs: opts.thinkMs,
       state: null,
       statusText: null,
       outcome: "INFRA_FAIL",
@@ -165,7 +187,7 @@ async function huntBatch(opts: {
       await page.goto(opts.previewUrl, { waitUntil: "domcontentloaded" })
       await page.locator("#pay").waitFor()
       await page.locator("#shipping").selectOption("express")
-      await sleep(THINK_MS)
+      await sleep(opts.thinkMs)
       await page.locator("#pay").click()
 
       const observed = await observeCheckout(page)
@@ -226,6 +248,7 @@ function printSummary(label: string, results: RunResult[]) {
   const pct = (s.failureRate * 100).toFixed(1)
   console.log("")
   console.log(`ONE IN TWENTY — ${label}`)
+  console.log(`Think-time:     ${results[0]?.thinkMs ?? "n/a"}ms`)
   console.log(`Runs:           ${results.length}`)
   console.log(`Passed:         ${s.passes}`)
   console.log(`App failures:   ${s.appFailures}`)
@@ -241,6 +264,9 @@ function printSummary(label: string, results: RunResult[]) {
     }
   }
 }
+
+const thinkMs = parseThinkMs(process.argv, DEFAULT_THINK_MS)
+console.log(`think_ms: ${thinkMs} (default ${DEFAULT_THINK_MS})`)
 
 const apiKey = requireApiKey()
 const pt = new SolariClient({ apiKey })
@@ -272,25 +298,11 @@ try {
     solari,
     startRun: 1,
     count: RUNS,
+    thinkMs,
     capturedPassShot,
   })
   allResults.push(...first)
   printSummary("BASELINE", first)
-
-  const firstSummary = summarize(first)
-  if (firstSummary.appFailures === 0 && firstSummary.infraFailures < RUNS) {
-    console.log("zero APP_FAIL in first 20 — diagnostic batch of 20, same timing")
-    const second = await huntBatch({
-      previewUrl: url,
-      solari,
-      startRun: 21,
-      count: RUNS,
-      capturedPassShot,
-    })
-    allResults.push(...second)
-    printSummary("DIAGNOSTIC", second)
-    printSummary("COMBINED", allResults)
-  }
 
   const replayIds: string[] = []
   for (const row of allResults) {
@@ -331,7 +343,7 @@ writeFileSync(
   join(ARTIFACTS, "baseline.json"),
   JSON.stringify(
     {
-      thinkMs: THINK_MS,
+      thinkMs,
       runs: allResults.length,
       passes: summary.passes,
       appFailures: summary.appFailures,
@@ -351,4 +363,6 @@ if (summary.appAttempts > 0 && summary.failureRate > 0.25) {
   console.log("BASELINE TOO HOT")
 } else if (summary.appFailures === 0) {
   console.log("BASELINE NOT CALIBRATED")
+} else if (summary.appFailures >= 1 && summary.appFailures <= 4) {
+  console.log("BASELINE CALIBRATED")
 }
