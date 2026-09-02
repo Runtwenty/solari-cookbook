@@ -3,9 +3,15 @@
  *
  * One successful checkout only. No 20-run hunter, no forced race.
  */
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { SolariClient } from "@solarisdk/sdk"
 import { Solari } from "@solarisdk/browser"
 import { FIXTURE_HTML } from "./fixture.ts"
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const SERVER_PY = readFileSync(join(HERE, "..", "fixture", "server.py"), "utf8")
 
 const apiKey = process.env.SOLARI_API_KEY
 if (!apiKey) {
@@ -89,8 +95,9 @@ console.log("sandbox:", sandbox.sandboxId)
 try {
   await sandbox.connect()
   await sandbox.files.write("/tmp/site/index.html", FIXTURE_HTML)
+  await sandbox.files.write("/tmp/site/server.py", SERVER_PY)
   await sandbox.commands.run("sh", {
-    args: ["-c", `cd /tmp/site && nohup python3 -m http.server ${PORT} >/dev/null 2>&1 &`],
+    args: ["-c", `cd /tmp/site && nohup python3 server.py >/tmp/site/server.log 2>&1 &`],
   })
 
   const { url } = await sandbox.previewUrl(PORT)

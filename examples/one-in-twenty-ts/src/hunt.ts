@@ -2,11 +2,11 @@
  * Pass 2 — 20 fresh recorded Solari Browser sessions against one Sandbox fixture.
  *
  * Does not wait for shipping to settle. After switching to Express it waits
- * configurable user think-time, then clicks Pay. Default 780ms. Override with
- * `--think-ms <number>`. The fixture's random 250–899ms shipping delay is left
- * alone.
+ * configurable user think-time, then clicks Pay. Default 720ms. Override with
+ * `--think-ms <number>`. Shipping delay is a real GET /api/shipping on the
+ * Sandbox (250–899ms). No extra network perturbation in this pass.
  */
-import { mkdirSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { SolariClient } from "@solarisdk/sdk"
@@ -19,6 +19,7 @@ const DEFAULT_THINK_MS = 720
 const PAY_OBSERVE_MS = 3000
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ARTIFACTS = join(HERE, "..", "artifacts")
+const SERVER_PY = readFileSync(join(HERE, "..", "fixture", "server.py"), "utf8")
 
 type Outcome = "PASS" | "APP_FAIL" | "INFRA_FAIL"
 
@@ -29,6 +30,9 @@ type RunResult = {
   startedAt: string
   elapsedMs: number
   thinkMs: number
+  shippingPath: string | null
+  shippingStatus: number | null
+  shippingDelayMs: number | null
   state: string | null
   statusText: string | null
   outcome: Outcome
@@ -169,6 +173,9 @@ async function huntBatch(opts: {
       startedAt: new Date(started).toISOString(),
       elapsedMs: 0,
       thinkMs: opts.thinkMs,
+      shippingPath: null,
+      shippingStatus: null,
+      shippingDelayMs: null,
       state: null,
       statusText: null,
       outcome: "INFRA_FAIL",
@@ -184,6 +191,10 @@ async function huntBatch(opts: {
       console.log(`run ${run}: session ${browser.id}`)
 
       const page = await browser.newPage()
+      const shippingDone = page.waitForResponse(
+        (res) => res.url().includes("/api/shipping"),
+        { timeout: 8000 },
+      )
       await page.goto(opts.previewUrl, { waitUntil: "domcontentloaded" })
       await page.locator("#pay").waitFor()
       await page.locator("#shipping").selectOption("express")
@@ -193,7 +204,26 @@ async function huntBatch(opts: {
       const observed = await observeCheckout(page)
       row.state = observed.state
       row.statusText = observed.statusText
-      row.outcome = observed.state === "paid" ? "PASS" : "APP_FAIL"
+      try {
+        const shippingRes = await shippingDone
+        row.shippingPath = "/api/shipping"
+        row.shippingStatus = shippingRes.status()
+        if (shippingRes.ok()) {
+          const data = (await shippingRes.json()) as { delayMs?: number }
+          if (typeof data?.delayMs === "number") row.shippingDelayMs = data.delayMs
+        }
+      } catch {
+        // no /api/shipping response — classified below
+      }
+      if (row.shippingStatus == null || row.shippingStatus >= 500) {
+        row.outcome = "INFRA_FAIL"
+        row.error =
+          row.shippingStatus == null
+            ? "no /api/shipping response"
+            : `/api/shipping HTTP ${row.shippingStatus}`
+      } else {
+        row.outcome = observed.state === "paid" ? "PASS" : "APP_FAIL"
+      }
 
       const wantShot =
         row.outcome === "APP_FAIL" ||
@@ -261,6 +291,8 @@ function printSummary(label: string, results: RunResult[]) {
       console.log(`Run #${fail.run}`)
       console.log(`State: ${fail.state}`)
       console.log(`Status: ${fail.statusText}`)
+      console.log(`shippingDelayMs: ${fail.shippingDelayMs ?? "n/a"}`)
+      console.log(`shippingStatus: ${fail.shippingStatus ?? "n/a"}`)
     }
   }
 }
@@ -282,8 +314,9 @@ const allResults: RunResult[] = []
 try {
   await sandbox.connect()
   await sandbox.files.write("/tmp/site/index.html", FIXTURE_HTML)
+  await sandbox.files.write("/tmp/site/server.py", SERVER_PY)
   await sandbox.commands.run("sh", {
-    args: ["-c", `cd /tmp/site && nohup python3 -m http.server ${PORT} >/dev/null 2>&1 &`],
+    args: ["-c", `cd /tmp/site && nohup python3 server.py >/tmp/site/server.log 2>&1 &`],
   })
   const { url } = await sandbox.previewUrl(PORT)
   console.log("preview:", redactUrl(url))
@@ -360,9 +393,9 @@ writeFileSync(
 console.log("wrote artifacts/baseline.json")
 
 if (summary.appAttempts > 0 && summary.failureRate > 0.25) {
-  console.log("BASELINE TOO HOT")
+  console.log("NETWORK BASELINE TOO HOT")
 } else if (summary.appFailures === 0) {
-  console.log("BASELINE NOT CALIBRATED")
+  console.log("NETWORK BASELINE NOT CALIBRATED")
 } else if (summary.appFailures >= 1 && summary.appFailures <= 4) {
-  console.log("BASELINE CALIBRATED")
+  console.log("NETWORK BASELINE CALIBRATED")
 }

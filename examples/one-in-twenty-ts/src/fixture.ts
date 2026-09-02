@@ -1,9 +1,10 @@
 /**
  * Tiny checkout fixture with a shipping/pay race.
  *
- * Changing shipping starts a delayed state update. Clicking Pay while that
- * update is still pending can leave checkout stuck on "Processing payment…"
- * or let a late shipping callback overwrite a completed payment.
+ * Changing shipping starts a real GET /api/shipping request. The server sleeps
+ * 250–899ms then returns method/cost. Clicking Pay while that request is still
+ * pending can leave checkout stuck on "Processing payment…" or let a late
+ * shipping response overwrite a completed payment.
  *
  * Under normal human timing the bug is intermittent, not guaranteed.
  * Pass 1 waits for shipping to settle before paying, so checkout should succeed.
@@ -37,7 +38,6 @@ export const FIXTURE_HTML = `<!doctype html>
   <p id="status" data-state="ready">Ready</p>
   <script>
     const PRODUCT = 20;
-    const RATES = { standard: 5, express: 15 };
     let shipping = "standard";
     let shippingCost = 5;
     let pending = 0;
@@ -53,15 +53,21 @@ export const FIXTURE_HTML = `<!doctype html>
       document.getElementById("total").textContent = "$" + (PRODUCT + shippingCost);
     }
 
-    document.getElementById("shipping").addEventListener("change", (event) => {
+    document.getElementById("shipping").addEventListener("change", async (event) => {
       const next = event.target.value;
       pending += 1;
       setStatus("shipping", "Updating shipping…");
-      const delay = 250 + Math.floor(Math.random() * 650);
-      setTimeout(() => {
+      try {
+        const res = await fetch("/api/shipping?method=" + encodeURIComponent(next));
+        if (!res.ok) {
+          pending -= 1;
+          setStatus("error", "Shipping request failed");
+          return;
+        }
+        const data = await res.json();
         pending -= 1;
-        shipping = next;
-        shippingCost = RATES[next];
+        shipping = data.method;
+        shippingCost = data.cost;
         render();
         // Stale shipping completion can clobber a finished payment.
         if (statusEl.dataset.state === "paid") {
@@ -71,7 +77,10 @@ export const FIXTURE_HTML = `<!doctype html>
         if (pending === 0 && statusEl.dataset.state !== "paying") {
           setStatus("ready", "Shipping ready");
         }
-      }, delay);
+      } catch (err) {
+        pending -= 1;
+        setStatus("error", "Shipping request failed");
+      }
     });
 
     document.getElementById("pay").addEventListener("click", () => {
