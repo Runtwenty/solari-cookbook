@@ -11,14 +11,23 @@ import asyncio
 import os
 import pathlib
 
+from dotenv import load_dotenv
 from solari_desktop import DesktopClient
+
+load_dotenv()
 
 BASE_URL = "https://api.getsolari.com"
 
 
 async def main() -> None:
+    api_key = os.environ.get("SOLARI_API_KEY")
+    if not api_key:
+        raise SystemExit(
+            "SOLARI_API_KEY is not set — copy .env.example to .env and paste your key "
+            "(https://console.getsolari.com)"
+        )
     async with DesktopClient(
-        api_key=os.environ["SOLARI_API_KEY"],
+        api_key=api_key,
         base_url=BASE_URL,
     ) as client:
         desktop = await client.create(
@@ -34,11 +43,18 @@ async def main() -> None:
             await desktop.connect()
 
             # Wait for X11 to be up before driving the GUI.
+            ready = False
             for _ in range(30):
                 health = await desktop.health()
                 if getattr(health, "ready", False):
+                    ready = True
                     break
                 await asyncio.sleep(1)
+            if not ready:
+                raise SystemExit(
+                    "desktop never became ready after 30s — the pool may have no "
+                    "warm hosts (see README)"
+                )
 
             width, height = 1280, 720
 

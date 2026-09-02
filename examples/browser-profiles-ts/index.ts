@@ -7,9 +7,15 @@
  *
  * Run this file twice: the first run logs in and saves, the second reuses it.
  */
+import "dotenv/config"
 import { Solari } from "@solarisdk/browser"
 
-const solari = new Solari({ apiKey: process.env.SOLARI_API_KEY! })
+const apiKey = process.env.SOLARI_API_KEY
+if (!apiKey) {
+  console.error("SOLARI_API_KEY is not set — copy .env.example to .env and paste your key (https://console.getsolari.com)")
+  process.exit(1)
+}
+const solari = new Solari({ apiKey })
 const PROFILE_NAME = "cookbook-demo"
 
 // Reuse the profile across runs; create it the first time only.
@@ -21,8 +27,8 @@ const browser = await solari.launch({ profileId: profile.id })
 try {
   const page = await browser.newPage()
 
-  // This demo site echoes whatever is in localStorage/cookies back to you, so
-  // you can see state survive between runs. Swap it for your real login flow.
+  // example.com is a static page — the persistence proof is the visit counter
+  // below, which reads state saved on this profile by the previous run.
   await page.goto("https://example.com")
 
   const seen = await page.evaluate(() => {

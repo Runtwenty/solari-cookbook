@@ -9,7 +9,7 @@ If `create` hangs or returns a capacity error, the desktop pool has no warm host
 ```bash
 cd examples/desktop-computer-use-py
 pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 python main.py
 ```
 

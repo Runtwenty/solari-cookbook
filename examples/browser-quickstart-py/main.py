@@ -8,11 +8,20 @@ happens to be running on Solari's infrastructure rather than your laptop.
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from solari_browser import Solari
+
+load_dotenv()
 
 
 async def main() -> None:
-    solari = Solari(api_key=os.environ["SOLARI_API_KEY"])
+    api_key = os.environ.get("SOLARI_API_KEY")
+    if not api_key:
+        raise SystemExit(
+            "SOLARI_API_KEY is not set — copy .env.example to .env and paste your key "
+            "(https://console.getsolari.com)"
+        )
+    solari = Solari(api_key=api_key)
 
     # `browser.close()` also RELEASES the session. Closing the browser alone
     # would leave the slot held until the plan deadline, so use try/finally.

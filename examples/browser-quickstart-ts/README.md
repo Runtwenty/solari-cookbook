@@ -9,7 +9,7 @@ Note the `solari.close()` in the `finally` block — the client keeps a loopback
 ```bash
 cd examples/browser-quickstart-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 npm start
 ```
 

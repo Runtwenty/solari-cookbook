@@ -42,7 +42,7 @@ git clone https://github.com/solari-sdk/solari-cookbook.git
 cd solari-cookbook/examples/browser-quickstart-ts
 
 npm install                          # or: pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # grab one at console.getsolari.com
+cp .env.example .env                 # then paste your key from console.getsolari.com
 npm start                            # or: python main.py
 ```
 

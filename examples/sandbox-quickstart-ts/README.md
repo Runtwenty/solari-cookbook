@@ -9,7 +9,7 @@ Commands are not shell-interpreted — argv goes in `args`. For pipes or redirec
 ```bash
 cd examples/sandbox-quickstart-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 npm start
 ```
 

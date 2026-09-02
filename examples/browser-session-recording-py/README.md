@@ -9,7 +9,7 @@ Recording is opt-in per session (`recording=True` at create time) — there is n
 ```bash
 cd examples/browser-session-recording-py
 pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 python main.py
 ```
 

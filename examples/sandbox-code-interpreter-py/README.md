@@ -9,7 +9,7 @@ Output arrives as a list of result items (`stdout`/`stderr`/`result`), not a sin
 ```bash
 cd examples/sandbox-code-interpreter-py
 pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 python main.py
 ```
 

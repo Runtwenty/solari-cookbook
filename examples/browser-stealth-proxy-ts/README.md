@@ -9,7 +9,7 @@ Reach a site that blocks datacenter traffic: `stealth: true` for the fingerprint
 ```bash
 cd examples/browser-stealth-proxy-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 npm start
 ```
 

@@ -7,7 +7,7 @@ Serve something from inside the sandbox on a public URL. Starts an HTTP server i
 ```bash
 cd examples/sandbox-port-preview-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 npm start
 ```
 
