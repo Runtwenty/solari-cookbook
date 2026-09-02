@@ -14,9 +14,15 @@
  *   proxy: { country: "us", session: "warm-1" }   sticky IP across sessions
  *   proxy: "smart"                     let Solari pick and rotate on block
  */
+import "dotenv/config"
 import { Solari } from "@solarisdk/browser"
 
-const solari = new Solari({ apiKey: process.env.SOLARI_API_KEY! })
+const apiKey = process.env.SOLARI_API_KEY
+if (!apiKey) {
+  console.error("SOLARI_API_KEY is not set — copy .env.example to .env and paste your key (https://console.getsolari.com)")
+  process.exit(1)
+}
+const solari = new Solari({ apiKey })
 
 const browser = await solari.launch({
   stealth: true,

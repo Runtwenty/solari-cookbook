@@ -7,7 +7,7 @@ Launch a cloud browser, open a page, read the title, close. The smallest complet
 ```bash
 cd examples/browser-quickstart-py
 pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 python main.py
 ```
 

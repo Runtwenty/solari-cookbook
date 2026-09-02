@@ -8,16 +8,25 @@ writes a line, sees the output, and builds on it — exactly like a notebook.
 import asyncio
 import os
 
+from dotenv import load_dotenv
 from solari_sandbox import SandboxClient
+
+load_dotenv()
 
 BASE_URL = "https://api.getsolari.com"
 
 
 async def main() -> None:
+    api_key = os.environ.get("SOLARI_API_KEY")
+    if not api_key:
+        raise SystemExit(
+            "SOLARI_API_KEY is not set — copy .env.example to .env and paste your key "
+            "(https://console.getsolari.com)"
+        )
     # The standalone SandboxClient requires base_url (only the umbrella
     # SolariClient in @solarisdk/sdk defaults it).
     async with SandboxClient(
-        api_key=os.environ["SOLARI_API_KEY"],
+        api_key=api_key,
         base_url=BASE_URL,
     ) as client:
         sandbox = await client.create(template="base", timeout_ms=5 * 60_000)

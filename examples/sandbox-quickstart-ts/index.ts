@@ -5,11 +5,18 @@
  * usually ready in about a second. Nothing you run inside can touch your
  * machine or another customer's.
  */
+import "dotenv/config"
 import { SolariClient } from "@solarisdk/sdk"
+
+const apiKey = process.env.SOLARI_API_KEY
+if (!apiKey) {
+  console.error("SOLARI_API_KEY is not set — copy .env.example to .env and paste your key (https://console.getsolari.com)")
+  process.exit(1)
+}
 
 // SolariClient defaults baseUrl to https://api.getsolari.com. (The standalone
 // SandboxClient/DesktopClient packages require baseUrl explicitly.)
-const pt = new SolariClient({ apiKey: process.env.SOLARI_API_KEY! })
+const pt = new SolariClient({ apiKey })
 
 const sandbox = await pt.sandboxes.create({
   template: "base",

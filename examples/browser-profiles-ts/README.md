@@ -9,7 +9,7 @@ Run it twice — the visit counter survives because the profile is saved between
 ```bash
 cd examples/browser-profiles-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+cp .env.example .env   # then paste your key from https://console.getsolari.com
 npm start
 ```
 
