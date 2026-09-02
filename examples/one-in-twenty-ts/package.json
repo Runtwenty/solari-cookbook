@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/run-pass1.ts"
+    "start": "tsx src/run-pass1.ts",
+    "hunt": "tsx src/hunt.ts"
   },
   "dependencies": {
     "@solarisdk/browser": "^0.1.1",
