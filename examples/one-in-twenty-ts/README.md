@@ -1,4 +1,4 @@
-# One In Twenty — Pass 2C
+# One In Twenty — Pass 2D
 
 One In Twenty will become a flaky-browser-bug forensics tool that uses disposable Solari browser sessions to detect intermittent failures, amplify the trigger, minimize it, verify it, and generate a Playwright regression test.
 
@@ -10,13 +10,13 @@ Pass 1 (`npm start`) proves the real Solari path: Sandbox, preview URL, one reco
 
 Pass 2 (`npm run hunt`) keeps **one Sandbox** and launches **20 fresh recorded Solari Browser sessions**.
 
-Shipping is no longer a client `setTimeout`. Changing shipping fires:
+Shipping is a real:
 
 ```
 GET /api/shipping?method=express
 ```
 
-A tiny Python server in the same Sandbox sleeps **250–899ms** then returns JSON `{ method, cost, delayMs }`. Pay still checks pending shipping ~80ms later. That is the race.
+A tiny Python server in the same Sandbox sleeps **250–899ms** then returns JSON `{ method, cost, delayMs }`. Pay still checks pending shipping ~80ms later. Wall-clock request time is longer than `delayMs` because of preview/path overhead.
 
 ## Classification
 
@@ -47,37 +47,37 @@ npm start
 ## Run Pass 2 hunt
 
 ```
-npm run hunt -- --think-ms 720
-npm run hunt -- --think-ms 740
+npm run hunt -- --think-ms 820
+npm run hunt -- --think-ms 860
 ```
 
-Default `--think-ms` is 720. Runtime files land in `artifacts/` (gitignored).
+Default `--think-ms` remains **720** (not calibrated). Runtime files land in `artifacts/` (gitignored).
 
 ## Verified results (real Solari runs)
 
-### Timer-backed calibration (old, in-page `setTimeout`)
+### Timer-backed (old, in-page `setTimeout`)
 
 | Think-time | Runs | PASS | APP_FAIL | INFRA_FAIL | Result |
 |---|---|---|---|---|---|
 | 780ms | 40 | 40 | 0 | 0 | NOT CALIBRATED |
 | 750ms | 20 | 20 | 0 | 0 | too cold |
-| 720ms | 20 | 16 | 4 | 0 | CALIBRATED |
+| 720ms | 20 | 16 | 4 | 0 | CALIBRATED (timer only) |
 
 Those numbers are **not** network-backed.
 
-### Network-backed calibration (current, real `/api/shipping`)
+### Network-backed (real `/api/shipping`)
 
-Pass 1 after the refactor: **paid**, `Paid express $35`.
+| Think-time | Runs | PASS | APP_FAIL | INFRA_FAIL | Rate | Result |
+|---|---|---|---|---|---|---|
+| 720ms | 20 | 12 | 8 | 0 | 40% | too hot |
+| 740ms | 20 | 12 | 8 | 0 | 40% | too hot |
+| 820ms | 20 | 14 | 6 | 0 | 30% | too hot |
+| 860ms | 20 | 11 | 9 | 0 | 45% | too hot |
 
-| Think-time | Runs | PASS | APP_FAIL | INFRA_FAIL | Result |
-|---|---|---|---|---|---|
-| 720ms | 20 | 12 | 8 | 0 | too hot |
-| 740ms | 20 | 12 | 8 | 0 | too hot |
+**NETWORK BASELINE NOT CALIBRATED.** Two timings this pass (820 then 860). No more walks. Server delay stayed 250–899ms. No Pass 3.
 
-**NETWORK BASELINE NOT CALIBRATED.** Real HTTP adds path latency on top of the 250–899ms server sleep, so the same think-times fail more often than the old timer. Server `delayMs` was recorded on every fail (HTTP 200). Delay range was not changed. No extra batches. No Pass 3.
+820ms APP_FAIL: **#3 #5 #11 #13 #16 #20**. All `paying`. `delayMs`: 652, 857, 763, 870, 746, 782. (`shippingRequestMs` on this batch was inflated by the observe wait.)
 
-720ms APP_FAIL runs: **#1, #2, #4, #5, #6, #13, #14, #20**. All `paying` / `Processing payment…`. Example `shippingDelayMs`: 678, 729, 700, 743, 817, 795, 708, 792.
+860ms APP_FAIL: **#2 #4 #6 #10 #11 #12 #14 #16 #19**. All `paying`. `delayMs`: 788, 588, 856, 670, 859, 750, 742, 684, 612. `shippingRequestMs` ~1010–1093ms (server sleep plus real path). HTTP 200 on all fails.
 
-740ms APP_FAIL runs: **#4, #7, #9, #10, #13, #16, #18, #19**. All `paying`. Example `shippingDelayMs`: 622, 731, 828, 542, 726, 607, 813, 845.
-
-20 unique Solari Browser IDs each batch. Fail screenshots captured. Some fail replays became available after poll; others stayed 404.
+20 unique Solari Browser IDs each batch. Fail screenshots captured. Some fail replays available; others stayed 404.

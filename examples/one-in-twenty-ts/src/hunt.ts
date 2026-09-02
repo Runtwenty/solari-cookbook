@@ -33,6 +33,7 @@ type RunResult = {
   shippingPath: string | null
   shippingStatus: number | null
   shippingDelayMs: number | null
+  shippingRequestMs: number | null
   state: string | null
   statusText: string | null
   outcome: Outcome
@@ -176,6 +177,7 @@ async function huntBatch(opts: {
       shippingPath: null,
       shippingStatus: null,
       shippingDelayMs: null,
+      shippingRequestMs: null,
       state: null,
       statusText: null,
       outcome: "INFRA_FAIL",
@@ -191,6 +193,12 @@ async function huntBatch(opts: {
       console.log(`run ${run}: session ${browser.id}`)
 
       const page = await browser.newPage()
+      let shippingStarted: number | null = null
+      page.on("request", (req) => {
+        if (req.url().includes("/api/shipping") && shippingStarted == null) {
+          shippingStarted = Date.now()
+        }
+      })
       const shippingDone = page.waitForResponse(
         (res) => res.url().includes("/api/shipping"),
         { timeout: 8000 },
@@ -201,11 +209,23 @@ async function huntBatch(opts: {
       await sleep(opts.thinkMs)
       await page.locator("#pay").click()
 
+      let shippingRes: Awaited<typeof shippingDone> | undefined
+      const shippingCaptured = shippingDone
+        .then((res) => {
+          shippingRes = res
+          if (shippingStarted != null) {
+            row.shippingRequestMs = Date.now() - shippingStarted
+          }
+          return res
+        })
+        .catch(() => undefined)
+
       const observed = await observeCheckout(page)
       row.state = observed.state
       row.statusText = observed.statusText
+      await shippingCaptured
       try {
-        const shippingRes = await shippingDone
+        if (!shippingRes) throw new Error("no shipping response")
         row.shippingPath = "/api/shipping"
         row.shippingStatus = shippingRes.status()
         if (shippingRes.ok()) {
@@ -292,6 +312,7 @@ function printSummary(label: string, results: RunResult[]) {
       console.log(`State: ${fail.state}`)
       console.log(`Status: ${fail.statusText}`)
       console.log(`shippingDelayMs: ${fail.shippingDelayMs ?? "n/a"}`)
+      console.log(`shippingRequestMs: ${fail.shippingRequestMs ?? "n/a"}`)
       console.log(`shippingStatus: ${fail.shippingStatus ?? "n/a"}`)
     }
   }
