@@ -2,12 +2,9 @@
  * Tiny checkout fixture with a shipping/pay race.
  *
  * Changing shipping starts a real GET /api/shipping request. The server sleeps
- * 250–899ms then returns method/cost. Clicking Pay while that request is still
- * pending can leave checkout stuck on "Processing payment…" or let a late
- * shipping response overwrite a completed payment.
- *
- * Under normal human timing the bug is intermittent, not guaranteed.
- * Pass 1 waits for shipping to settle before paying, so checkout should succeed.
+ * 250–899ms then returns method/cost. Pay used to freeze in `paying` if that
+ * request was still pending at an 80ms check. Payment now completes when the
+ * current shipping operation finishes.
  */
 export const FIXTURE_HTML = `<!doctype html>
 <html lang="en">
@@ -41,6 +38,8 @@ export const FIXTURE_HTML = `<!doctype html>
     let shipping = "standard";
     let shippingCost = 5;
     let pending = 0;
+    let shippingSeq = 0;
+    let payGen = 0;
     const statusEl = document.getElementById("status");
 
     function setStatus(state, text) {
@@ -53,51 +52,67 @@ export const FIXTURE_HTML = `<!doctype html>
       document.getElementById("total").textContent = "$" + (PRODUCT + shippingCost);
     }
 
+    function completePay(method, cost, gen) {
+      if (statusEl.dataset.state === "paid") return false;
+      if (gen !== payGen) return false;
+      shipping = method;
+      shippingCost = cost;
+      render();
+      setStatus("paid", "Paid " + method + " $" + (PRODUCT + cost));
+      return true;
+    }
+
     document.getElementById("shipping").addEventListener("change", async (event) => {
       const next = event.target.value;
       pending += 1;
+      const seq = ++shippingSeq;
       setStatus("shipping", "Updating shipping…");
       try {
         const res = await fetch("/api/shipping?method=" + encodeURIComponent(next));
         if (!res.ok) {
           pending -= 1;
-          setStatus("error", "Shipping request failed");
+          if (seq === shippingSeq) setStatus("error", "Shipping request failed");
           return;
         }
         const data = await res.json();
         pending -= 1;
-        shipping = data.method;
-        shippingCost = data.cost;
-        render();
-        // Stale shipping completion can clobber a finished payment.
+        if (seq !== shippingSeq) {
+          if (statusEl.dataset.state === "paying" && pending === 0) {
+            completePay(shipping, shippingCost, payGen);
+          }
+          return;
+        }
         if (statusEl.dataset.state === "paid") {
           setStatus("error", "Shipping update overwrote paid checkout");
           return;
         }
-        if (pending === 0 && statusEl.dataset.state !== "paying") {
+        shipping = data.method;
+        shippingCost = data.cost;
+        render();
+        if (statusEl.dataset.state === "paying" && pending === 0) {
+          completePay(data.method, data.cost, payGen);
+          return;
+        }
+        if (pending === 0) {
           setStatus("ready", "Shipping ready");
         }
       } catch (err) {
         pending -= 1;
-        setStatus("error", "Shipping request failed");
+        if (seq === shippingSeq) setStatus("error", "Shipping request failed");
       }
     });
 
     document.getElementById("pay").addEventListener("click", () => {
       if (statusEl.dataset.state === "paid") return;
+      payGen += 1;
+      const gen = payGen;
       const capturedShipping = shipping;
       const capturedCost = shippingCost;
       setStatus("paying", "Processing payment…");
-      setTimeout(() => {
-        if (pending > 0) {
-          // Intermittent: sometimes the pay never leaves the loading state.
-          setStatus("paying", "Processing payment…");
-          return;
-        }
-        setStatus(
-          "paid",
-          "Paid " + capturedShipping + " $" + (PRODUCT + capturedCost),
-        );
+      setTimeout(function () {
+        if (statusEl.dataset.state === "paid") return;
+        if (pending > 0) return;
+        completePay(capturedShipping, capturedCost, gen);
       }, 80);
     });
   </script>

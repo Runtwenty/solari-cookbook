@@ -244,6 +244,15 @@ async function huntBatch(opts: {
       } else {
         row.outcome = observed.state === "paid" ? "PASS" : "APP_FAIL"
       }
+      if (
+        row.outcome === "PASS" &&
+        row.shippingRequestMs != null &&
+        row.shippingRequestMs > opts.thinkMs + 80
+      ) {
+        console.log(
+          `run ${run}: late_shipping_after_old_race_boundary reqMs=${row.shippingRequestMs} thinkMs=${opts.thinkMs}`,
+        )
+      }
 
       const wantShot =
         row.outcome === "APP_FAIL" ||
