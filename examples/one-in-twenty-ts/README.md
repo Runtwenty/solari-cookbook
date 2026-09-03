@@ -1,8 +1,38 @@
 # One in Twenty
 
-A checkout fixture hosted in a Solari Sandbox, opened through a public preview URL, and driven by recorded Solari Browser sessions. It plants a client/server shipping-vs-pay timing race, reproduces it across isolated sessions, and shows a deterministic state-driven fix.
+**One-in-Twenty is a Solari-powered harness for reproducing, diagnosing, and verifying intermittent browser race conditions using real sandboxes, port previews, and recorded browser sessions.**
+
+The checkout page is the test fixture, not the product. A Solari Sandbox hosts it, a public preview URL (`*.preview.getsolari.com`) serves it, and recorded Solari Browser sessions drive it. The fixture plants a client/server shipping-vs-pay timing race, reproduces it across isolated sessions, and shows a deterministic state-driven fix.
 
 This is a cookbook example, not production payment code.
+
+## Visual walkthrough
+
+### 1. The intermittent failure
+
+![Stuck at Processing payment](assets/before-stuck.png)
+
+The checkout could become permanently stuck at `Processing payment...` when shipping was still in flight during the old one-shot payment check.
+
+### 2. The race
+
+![Before vs after race flow](assets/race-flow.png)
+
+The shipping request could finish successfully after the payment check, but the successful response had no mechanism to resume payment.
+
+### 3. The deterministic fix
+
+![Paid express $35](assets/after-paid.png)
+
+Payment now waits for the current shipping operation and resumes when that operation completes. Stale shipping responses remain ignored.
+
+### Validation
+
+- 20/20 PASS at 820 ms
+- 20/20 PASS at 860 ms
+- 20/20 PASS with randomized 250–899 ms delay
+- 60/60 total live runs PASS
+- 6/6 regression tests PASS
 
 ## What it demonstrates
 
